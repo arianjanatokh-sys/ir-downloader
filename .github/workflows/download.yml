@@ -1,0 +1,51 @@
+name: Smart File Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Download Link'
+        required: true
+        type: string
+      pass:
+        description: 'Password (Optional)'
+        required: false
+        type: string
+      split:
+        description: 'Split Size in MB (for large files)'
+        required: false
+        default: '95'
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download File
+        run: |
+          mkdir -p downloads
+          cd downloads
+          curl -L -o "file" "${{ github.event.inputs.url }}"
+
+      - name: Split if Large
+        run: |
+          cd downloads
+          if [ -f "file" ]; then
+            SIZE_MB=$(du -m "file" | cut -f1)
+            if [ $SIZE_MB -gt ${{ github.event.inputs.split }} ]; then
+              split -b ${{ github.event.inputs.split }}M "file" "part_"
+              rm "file"
+            fi
+          fi
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add downloads/
+          git diff --quiet && git diff --staged --quiet || git commit -m "Download from workflow"
+          git push
